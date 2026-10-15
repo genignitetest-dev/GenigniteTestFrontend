@@ -25,7 +25,10 @@ const SIZES = ['S','M','L','XL','XXL']
 const TECH = ['Generative AI','Agentic AI','LLMs & RAG','Machine Learning','Computer Vision','Cybersecurity','Data Science','IoT & Embedded','Blockchain','Cloud & DevOps','AR / VR','Full-Stack Web']
 const FEES = { INDIVIDUAL: 899, TEAM: 2199, STALL: 15000 }
 const TITLES = { INDIVIDUAL: 'Individual registration', TEAM: 'Team registration', STALL: 'Stall booking' }
-const API = import.meta.env.VITE_API_URL || '/api'
+const configuredApi = import.meta.env.VITE_API_URL?.trim()
+const API = configuredApi && (configuredApi.startsWith('https://') || configuredApi.startsWith('http://'))
+  ? configuredApi.replace(/\/+$/, '')
+  : 'https://genignitetestbackend.onrender.com/api'
 const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(EVENT.mapQuery)
 const blank = () => ({ name:'', email:'', phone:'', college:'', branch:'', year:'', tshirt:'', food:'' })
 
@@ -94,28 +97,33 @@ export default function App() {
     return ''
   }
 
-  const pay = async () => {
-    const msg = validate(); if (msg) return setErr(msg)
-    setErr(''); setBusy(true)
+  const submitRegistration = async () => {
+    const msg = validate()
+    if (msg) return setErr(msg)
+
+    setErr('')
+    setBusy(true)
     try {
-      const o = await post('/registrations/order', { type, teamName, projectName, abstractText, techInterests: tech.join(', '), members })
-      const rzp = new window.Razorpay({
-        key: o.keyId, amount: o.amount, currency: 'INR', order_id: o.orderId,
-        name: 'GenIgnite Technologies', description: 'GenZ Hackers Night',
-        prefill: { name: members[0].name, email: members[0].email, contact: members[0].phone },
-        theme: { color: '#ffb62e' },
-        handler: async r => { try { setDone(await post('/registrations/verify', r)) } catch (e) { setErr(e.message) } setBusy(false) },
-        modal: { ondismiss: () => setBusy(false) },
+      const result = await post('/registrations/order', {
+        type,
+        teamName,
+        projectName,
+        abstractText,
+        techInterests: tech.join(', '),
+        members,
       })
-      rzp.on('payment.failed', r => { setErr(r.error.description || 'Payment failed. Please retry.'); setBusy(false) })
-      rzp.open()
-    } catch (e) { setErr(e.message); setBusy(false) }
+      setDone(result)
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <>
       <nav className="nav">
-        <a href="https://genignitetechnologies.in/" className="logo" target="/blank">GenIgnite</a>
+        <a href="https://genignitetechnologies.in/" className="logo" target="_blank" rel="noreferrer">GenIgnite</a>
         <div className="links"><a href="#highlights">Highlights</a><a href="#prizes">Prizes</a><a href="#guests">Guests</a><a href="#stalls">Stalls</a><a href="#venue">Venue</a></div>
         <a href="#register" className="navcta">Register</a>
       </nav>
@@ -192,9 +200,11 @@ export default function App() {
       <section className="sec reg" id="register">
         {done ? (
           <div className="card success">
-            <h2>You're in!</h2><p>Payment of ₹{done.amount} received. Your registration ID is</p>
+            <h2>Registration submitted!</h2>
+            <p>{done.message || 'Your registration has been received.'}</p>
             <strong className="rid">{done.registrationId}</strong>
-            <p>Keep this ID safe. Further details will be sent to the lead's email.</p>
+            <p>Status: <b>{done.status || 'PENDING'}</b></p>
+            <p>Keep this registration ID safe. Online payment is not enabled yet; the registration fee has not been charged. Please wait for payment instructions from the organisers.</p>
           </div>
         ) : !type ? (
           <>
@@ -219,8 +229,8 @@ export default function App() {
             {type === 'STALL' && <div className="row"><button className="ghost" onClick={addMember} disabled={members.length >= 5}>Add member</button><button className="ghost" onClick={dropMember} disabled={members.length <= 3}>Remove member</button></div>}
             {type !== 'STALL' && <fieldset className="card"><legend>Technologies you want to build with</legend><div className="chips pick">{TECH.map(t => <button type="button" key={t} className={tech.includes(t) ? 'on' : ''} onClick={() => toggle(t)}>{t}</button>)}</div></fieldset>}
             {err && <p className="error" role="alert">{err}</p>}
-            <button className="cta" disabled={busy} onClick={pay}>{busy ? 'Processing…' : `Pay ₹${FEES[type].toLocaleString('en-IN')} and register`}</button>
-            <p className="note">Your registration is confirmed only after the payment succeeds.</p>
+            <button className="cta" disabled={busy} onClick={submitRegistration}>{busy ? 'Submitting…' : 'Submit registration'}</button>
+            <p className="note">Submitting this form saves your registration as pending. Online payment is not enabled yet.</p>
           </>
         )}
       </section>

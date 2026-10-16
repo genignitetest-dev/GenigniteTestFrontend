@@ -76,3 +76,5 @@ footer{border-top:1px solid var(--line);padding:36px 24px;text-align:center;colo
 .lead-row{display:flex;justify-content:center;gap:56px;flex-wrap:wrap;margin-bottom:16px}.lead-row div{display:flex;flex-direction:column}.lead-row b{color:var(--text);font-size:1.1rem}
 @media(max-width:600px){.podium{grid-template-columns:1fr}.pz{border-radius:18px;padding:20px!important}.facts div{border-right:0;border-bottom:1px solid var(--line)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+.upi-qr{display:block;width:min(100%,340px);height:auto;margin:22px auto;padding:12px;background:#fff;border-radius:16px;border:1px solid var(--line)}
+.payment-pending{padding:16px;border:1px solid var(--line);border-radius:12px;background:rgba(255,182,46,.08)}

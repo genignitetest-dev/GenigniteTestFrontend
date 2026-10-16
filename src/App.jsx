@@ -56,8 +56,10 @@ function MemberCard({ m, i, kind, onChange }) {
           <Field label="Branch"><select value={m.branch} onChange={set('branch')}><option value="">Select branch</option>{BRANCHES.map(b => <option key={b}>{b}</option>)}</select></Field>
           <Field label="Year of study"><select value={m.year} onChange={set('year')}><option value="">Select year</option><option>3rd Year</option><option>4th Year</option></select></Field>
         </>}
-        <Field label="T-shirt size"><select value={m.tshirt} onChange={set('tshirt')}><option value="">Select size</option>{SIZES.map(s => <option key={s}>{s}</option>)}</select></Field>
-        <Field label="Food preference"><div className="seg">{['Veg','Non-Veg'].map(f => <button type="button" key={f} className={m.food === f ? 'on' : ''} onClick={() => onChange(i, 'food', f)}>{f}</button>)}</div></Field>
+        {!stall && <>
+          <Field label="T-shirt size"><select value={m.tshirt} onChange={set('tshirt')}><option value="">Select size</option>{SIZES.map(s => <option key={s}>{s}</option>)}</select></Field>
+          <Field label="Food preference"><div className="seg">{['Veg','Non-Veg'].map(f => <button type="button" key={f} className={m.food === f ? 'on' : ''} onClick={() => onChange(i, 'food', f)}>{f}</button>)}</div></Field>
+        </>}
       </div>
     </fieldset>
   )
@@ -73,6 +75,8 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null)
+  const [paymentReference, setPaymentReference] = useState('')
+  const [paymentReported, setPaymentReported] = useState(false)
 
   const jump = () => setTimeout(() => document.getElementById('register')?.scrollIntoView({ behavior: 'smooth' }), 30)
   const choose = t => { setType(t); setMembers(Array.from({ length: t === 'TEAM' ? 3 : t === 'STALL' ? 3 : 1 }, blank)); setErr(''); jump() }
@@ -87,7 +91,7 @@ export default function App() {
     if (type !== 'INDIVIDUAL' && !teamName.trim()) return stall ? 'Enter your stall name.' : 'Enter your team name.'
     if (!stall && !projectName.trim()) return 'Enter your project name.'
     if (!abstractText.trim()) return stall ? 'Describe what you will showcase.' : 'Write a short abstract of your project.'
-    const need = stall ? ['name','email','phone','tshirt','food'] : Object.keys(blank())
+    const need = stall ? ['name','email','phone'] : Object.keys(blank())
     for (const [i, m] of members.entries()) {
       const who = type === 'INDIVIDUAL' ? '' : `Member ${i + 1}: `
       if (need.some(k => !String(m[k]).trim())) return `${who}fill in every required field.`
@@ -141,7 +145,7 @@ export default function App() {
             <div><dt>Where</dt><dd>IT Hub, Nizamabad</dd></div>
             <div><dt>When</dt><dd>{EVENT.date}</dd></div>
             <div><dt>Who</dt><dd>B.Tech 3rd and 4th year</dd></div>
-            <div><dt>Fee</dt><dd>₹899 solo, ₹2,199 per team of 3</dd></div>
+            <div><dt>Fee</dt><dd>₹899 individual, ₹2,199 per team of 3</dd></div>
           </dl>
         </div>
       </header>
@@ -162,8 +166,8 @@ export default function App() {
       <section className="sec" id="prizes">
         <h2>Prizes and opportunities</h2>
         <div className="podium">
-          <div className="pz p2"><small>Second prize</small><b>₹25,000</b></div>
           <div className="pz p1"><small>First prize</small><b>₹50,000</b></div>
+          <div className="pz p2"><small>Second prize</small><b>₹25,000</b></div>
           <div className="pz p3"><small>Third prize</small><b>A special gift</b></div>
         </div>
         <div className="two">
@@ -200,11 +204,25 @@ export default function App() {
       <section className="sec reg" id="register">
         {done ? (
           <div className="card success">
-            <h2>Registration submitted!</h2>
+            <h2>Registration saved</h2>
             <p>{done.message || 'Your registration has been received.'}</p>
             <strong className="rid">{done.registrationId}</strong>
-            <p>Status: <b>{done.status || 'PENDING'}</b></p>
-            <p>Keep this registration ID safe. Online payment is not enabled yet; the registration fee has not been charged. Please wait for payment instructions from the organisers.</p>
+            <p>Registration fee: <b>₹{done.amount}</b></p>
+            {!paymentReported ? <>
+              <p>Scan this UPI QR code with Google Pay, PhonePe, Paytm or another UPI app. Enter the fee shown above and include your registration ID in the payment note if your app allows it.</p>
+              <img className="upi-qr" src="/upi-qr.png" alt="UPI payment QR code" />
+              <p className="note">After paying, enter the UPI transaction/reference number below. This submits your payment claim; the organiser must verify the payment before the booking is marked paid.</p>
+              <Field label="UPI transaction/reference number"><input value={paymentReference} onChange={e => setPaymentReference(e.target.value)} maxLength={100} placeholder="Enter UPI transaction ID" /></Field>
+              {err && <p className="error" role="alert">{err}</p>}
+              <button className="cta" disabled={busy} onClick={async () => {
+                if (!paymentReference.trim()) { setErr('Enter the UPI transaction/reference number after paying.'); return }
+                setBusy(true); setErr('')
+                try {
+                  const result = await post(`/registrations/${done.databaseId}/payment-reference`, { reference: paymentReference.trim() })
+                  setPaymentReported(true); setDone(current => ({ ...current, paymentStatus: result.paymentStatus }))
+                } catch (e) { setErr(e.message) } finally { setBusy(false) }
+              }}>{busy ? 'Submitting…' : 'Submit payment reference'}</button>
+            </> : <p className="payment-pending">Payment reference submitted. Status: <b>{done.paymentStatus || 'PENDING_VERIFICATION'}</b>. Your registration will be confirmed after the organiser verifies the payment.</p>}
           </div>
         ) : !type ? (
           <>
@@ -230,7 +248,7 @@ export default function App() {
             {type !== 'STALL' && <fieldset className="card"><legend>Technologies you want to build with</legend><div className="chips pick">{TECH.map(t => <button type="button" key={t} className={tech.includes(t) ? 'on' : ''} onClick={() => toggle(t)}>{t}</button>)}</div></fieldset>}
             {err && <p className="error" role="alert">{err}</p>}
             <button className="cta" disabled={busy} onClick={submitRegistration}>{busy ? 'Submitting…' : 'Submit registration'}</button>
-            <p className="note">Submitting this form saves your registration as pending. Online payment is not enabled yet.</p>
+            <p className="note">Submitting this form saves your registration and displays the UPI QR code for payment.</p>
           </>
         )}
       </section>
